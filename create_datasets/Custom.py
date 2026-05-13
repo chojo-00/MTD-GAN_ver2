@@ -50,3 +50,41 @@ def CUSTOM_Dataset_DCM(mode, type='window'):
         return Dataset(data=files, transform=transforms), list_data_collate
     else:
         return Dataset(data=files, transform=transforms), default_collate_fn
+    
+
+
+def TEST_CUSTOM_Dataset_DCM(mode='test', type='window_patch'):
+    # 실제 데이터가 있는 최상위 경로 (테스트 폴더)
+    base_dir = "/workspace/bc_cho/0_Project/2_LDCT2NDCT/dataset/nas206" 
+    mode_dir = os.path.join(base_dir)
+
+    # 1. WBCT_Chest 데이터 (입력: B45f -> 정답: B30f)
+    in_chest_full = list_sort_nicely(glob.glob(os.path.join(mode_dir, 'WBCT_Chest/Full/*/B45f/*.dcm')))
+    gt_chest_full = list_sort_nicely(glob.glob(os.path.join(mode_dir, 'WBCT_Chest/Full/*/B30f/*.dcm')))
+
+    in_chest_quarter = list_sort_nicely(glob.glob(os.path.join(mode_dir, 'WBCT_Chest/Quarter/*/B45f/*.dcm')))
+    gt_chest_quarter = list_sort_nicely(glob.glob(os.path.join(mode_dir, 'WBCT_Chest/Quarter/*/B30f/*.dcm')))
+
+    # 2. WBCT_Chest_add 데이터 (입력: Br49d -> 정답: Br36d)
+    in_add_full = list_sort_nicely(glob.glob(os.path.join(mode_dir, 'WBCT_Chest_add/Full/*/Br49d/*.dcm')))
+    gt_add_full = list_sort_nicely(glob.glob(os.path.join(mode_dir, 'WBCT_Chest_add/Full/*/Br36d/*.dcm')))
+
+    in_add_quarter = list_sort_nicely(glob.glob(os.path.join(mode_dir, 'WBCT_Chest_add/Quarter/*/Br49d/*.dcm')))
+    gt_add_quarter = list_sort_nicely(glob.glob(os.path.join(mode_dir, 'WBCT_Chest_add/Quarter/*/Br36d/*.dcm')))
+
+    # 3. 모든 경로 합치기
+    n_20_imgs = in_chest_full + in_chest_quarter + in_add_full + in_add_quarter
+    n_100_imgs = gt_chest_full + gt_chest_quarter + gt_add_full + gt_add_quarter
+
+    print(f"[{mode}] Input count: {len(n_20_imgs)}, Target count: {len(n_100_imgs)}")
+
+    # 딕셔너리 형태로 묶기
+    files = [{"n_20": n_20, "n_100": n_100, "path_n_20": n_20, "path_n_100": n_100} for n_20, n_100 in zip(n_20_imgs, n_100_imgs)]
+    # Mayo.py에 정의된 Data Augmentation & Normalization 가져오기
+    transforms = get_transforms(mode=mode, type=type)
+
+    # 데이터셋 반환 (Test는 주로 기본 collate_fn을 사용합니다)
+    if type == 'full_patch' or type == 'window_patch':
+        return Dataset(data=files, transform=transforms), list_data_collate
+    else:
+        return Dataset(data=files, transform=transforms), default_collate_fn
