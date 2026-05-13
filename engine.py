@@ -125,7 +125,9 @@ def test_MTD_GAN_Ours(model, loss, data_loader, device, save_dir):
     psnr_list = []
     ssim_list = []
 
-    for batch_data in tqdm(data_loader, desc='TEST: ', file=sys.stdout, mininterval=10):
+    header = 'TEST:'
+    print_freq = 10 
+    for batch_data in metric_logger.log_every(data_loader, print_freq, header):
 
         input_n_20  = batch_data['n_20'].to(device).float()
         input_n_100 = batch_data['n_100'].to(device).float()
@@ -159,9 +161,9 @@ def test_MTD_GAN_Ours(model, loss, data_loader, device, save_dir):
         pred_n_100  = fn_tonumpy(pred_n_100)
 
         # PNG Save
-        plt.imsave(save_dir + '/' + batch_data['path_n_20'][0].split('_')[-1].replace('.dcm', '_gt_n_20.png'),    input_n_20.squeeze(),  cmap="gray")
-        plt.imsave(save_dir + '/' + batch_data['path_n_100'][0].split('_')[-1].replace('.dcm', '_gt_n_100.png'), input_n_100.squeeze(), cmap="gray")
-        plt.imsave(save_dir + '/' + batch_data['path_n_20'][0].split('_')[-1].replace('.dcm', '_pred_n_100.png'),pred_n_100.squeeze(),  cmap="gray")
+        plt.imsave(save_dir + '/' + batch_data['path_n_20'][0].split('/')[-1].replace('.dcm', '_gt_n_20.png'),    input_n_20.squeeze(),  cmap="gray")
+        plt.imsave(save_dir + '/' + batch_data['path_n_100'][0].split('/')[-1].replace('.dcm', '_gt_n_100.png'), input_n_100.squeeze(), cmap="gray")
+        plt.imsave(save_dir + '/' + batch_data['path_n_20'][0].split('/')[-1].replace('.dcm', '_pred_n_100.png'),pred_n_100.squeeze(),  cmap="gray")
 
         # Per-sample records
         path_list.append(batch_data['path_n_20'][0])

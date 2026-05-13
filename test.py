@@ -71,7 +71,16 @@ def main(args):
     # Model
     model = get_model(name=args.model)
 
-    # Multi-GPU (MTD-GAN has Generator + Discriminator)
+
+    # Resume
+    if args.resume:
+        print("Loading... Resume")
+        checkpoint = torch.load(args.resume, map_location='cpu')
+        checkpoint['model_state_dict'] = {k.replace('.module', ''): v for k, v in checkpoint['model_state_dict'].items()}
+        model.load_state_dict(checkpoint['model_state_dict'])
+
+
+    # 2. Multi-GPU (MTD-GAN has Generator + Discriminator)
     if args.multi_gpu_mode == 'DataParallel':
         model.Generator     = torch.nn.DataParallel(model.Generator)
         model.Discriminator = torch.nn.DataParallel(model.Discriminator)
@@ -82,13 +91,6 @@ def main(args):
 
     # Loss
     loss = get_loss(name=args.loss)
-
-    # Resume
-    if args.resume:
-        print("Loading... Resume")
-        checkpoint = torch.load(args.resume, map_location='cpu')
-        checkpoint['model_state_dict'] = {k.replace('.module', ''): v for k, v in checkpoint['model_state_dict'].items()}
-        model.load_state_dict(checkpoint['model_state_dict'])
 
     start_time = time.time()
 

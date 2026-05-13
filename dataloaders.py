@@ -39,6 +39,11 @@ def get_test_dataloader(name, args):
         test_dataset, test_collate_fn = TEST_MAYO_Dataset_DCM(mode='test', type=args.dataset_type_test)
         test_loader = DataLoader(test_dataset, batch_size=args.test_batch_size, num_workers=args.test_num_workers, shuffle=False, drop_last=False, collate_fn=test_collate_fn) 
     
+    elif name == 'my_chest_data':
+        test_dataset, test_collate_fn = Custom.TEST_CUSTOM_Dataset_DCM(mode='test', type=args.dataset_type_test)
+        test_loader = DataLoader(test_dataset, batch_size=args.test_batch_size, num_workers=args.test_num_workers, shuffle=False, drop_last=False, collate_fn=test_collate_fn)
+
+
     else: 
         raise Exception('Error...! args.data_set')
 
