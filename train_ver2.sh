@@ -62,7 +62,7 @@ docker run --rm \
                 --dataset my_chest_data \
                 --dataset-type-train 'window_patch' \
                 --dataset-type-valid 'window' \
-                --batch-size 72 \
+                --batch-size 4 \
                 --train-num-workers 16 \
                 --valid-num-workers 16 \
                 --model 'MTD_GAN_Method' \
