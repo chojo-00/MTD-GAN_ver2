@@ -1,19 +1,19 @@
 #!/bin/bash
-#SBATCH -J mtd_gan_train_ver2
+#SBATCH -J mtd_gan_train_ver2_full
 #SBATCH -t 7-00:00:00
 #SBATCH -o logs/%x_%A_%N.out
 #SBATCH --mail-type END,TIME_LIMIT_90,REQUEUE,INVALID_DEPEND,BEGIN
 #SBATCH --mail-user chobyeongcheon00@gmail.com
 #SBATCH -p A6000
 #SBATCH -w gpu120
-#SBATCH --gres=gpu:2
+#SBATCH --gres=gpu:1
 
 
 # export HTTP_PROXY="http://192.168.45.108:3128"
 # export HTTPS_PROXY="http://192.168.45.108:3128"
 
 # Define vars
-JOB_NAME="mtd_gan_train_ver2"
+JOB_NAME="mtd_gan_train_ver2_full"
 DOCKER_IMAGE_NAME="bc_cho/${JOB_NAME}"
 DOCKER_CONTAINER_NAME="bc_cho${JOB_NAME}"
 PORT_NUM=4966
@@ -41,11 +41,6 @@ if docker ps -a -q --filter "name=${DOCKER_CONTAINER_NAME}" | grep -q .; then
     docker rm ${DOCKER_CONTAINER_NAME}
 fi
 
-# gpu 
-echo "=== Check GPU on Host Node ==="
-nvidia-smi
-echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
-
 
 # Run containers
 docker run --rm \
@@ -60,9 +55,9 @@ docker run --rm \
             cd ${CODE_DIR} && \
             python3 train.py \
                 --dataset my_chest_data \
-                --dataset-type-train 'window_patch' \
-                --dataset-type-valid 'window' \
-                --batch-size 4 \
+                --dataset-type-train 'full_patch' \
+                --dataset-type-valid 'full' \
+                --batch-size 72 \
                 --train-num-workers 16 \
                 --valid-num-workers 16 \
                 --model 'MTD_GAN_Method' \
@@ -71,8 +66,8 @@ docker run --rm \
                 --optimizer 'adamw' \
                 --scheduler 'poly_lr' \
                 --epochs 10 \
-                --warmup-epochs 1 \
-                --multi-gpu-mode DataParallel \
+                --warmup-epochs 0 \
+                --multi-gpu-mode Single \
                 --lr 5e-4 \
                 --min-lr 1e-5 \
                 --print-freq 10 \
