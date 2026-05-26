@@ -6,12 +6,16 @@ import pandas as pd
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
+from torch.cuda.amp import autocast, GradScaler
 from metrics import compute_feat, compute_FID, compute_PL, compute_TML, compute_RMSE, compute_PSNR, compute_SSIM
 
 
 # Setting
 fn_denorm  = lambda x: (x * 0.5) + 0.5
 fn_tonumpy = lambda x: x.cpu().detach().numpy().transpose(0, 2, 3, 1)
+
+scaler_D = GradScaler()
+scaler_G = GradScaler()
 
 
 # ============================================================
@@ -34,25 +38,39 @@ def train_MTD_GAN_Ours(model, data_loader, optimizer_G, optimizer_D, device, epo
             # Discriminator (multi-task weighting: PCGrad / CAGrad / MGDA / ...)
             optimizer_D.zero_grad()
             model.Discriminator.zero_grad()
-            d_losses, d_loss_details = model.d_loss(input_n_20, input_n_100)
+            
+            # --- Forward에 autocast 적용 ---
+            with autocast():
+                d_losses, d_loss_details = model.d_loss(input_n_20, input_n_100)
+                
             actual_discriminator = model.Discriminator.module if hasattr(model.Discriminator, 'module') else model.Discriminator
+            
+            # method_D.backward 내부 연산의 안정성을 위해 float32로 캐스팅하여 전달합니다.
             loss_D, extra_outputs_D = method_D.backward(
-                losses=d_losses,
+                losses=d_losses.float(),  # <--- 파이토치 텐서 유지
                 shared_parameters=list(actual_discriminator.shared_parameters()),
                 task_specific_parameters=list(actual_discriminator.task_specific_parameters()),
                 last_shared_parameters=list(actual_discriminator.last_shared_parameters()),
             )
             optimizer_D.step()
-            metric_logger.update(d_loss=sum(d_losses))
+            metric_logger.update(d_loss=d_losses.sum().item()) # <--- sum() 연산도 파이토치 내장 함수로 변경
             metric_logger.update(**d_loss_details)
+
 
             # Generator
             optimizer_G.zero_grad()
             model.Generator.zero_grad()
-            g_loss, g_loss_details = model.g_loss(input_n_20, input_n_100)
-            g_loss.backward()
-            optimizer_G.step()
-            metric_logger.update(g_loss=g_loss)
+            
+            # --- Forward에 autocast 적용 ---
+            with autocast():
+                g_loss, g_loss_details = model.g_loss(input_n_20, input_n_100)
+                
+            # --- Scaler를 통한 Backward 및 Optimizer Step ---
+            scaler_G.scale(g_loss).backward()
+            scaler_G.step(optimizer_G)
+            scaler_G.update()
+            
+            metric_logger.update(g_loss=g_loss.item())
             metric_logger.update(**g_loss_details)
             metric_logger.update(lr=optimizer_G.param_groups[0]["lr"])
 
@@ -60,19 +78,33 @@ def train_MTD_GAN_Ours(model, data_loader, optimizer_G, optimizer_D, device, epo
             # Discriminator (vanilla sum-of-losses)
             optimizer_D.zero_grad()
             model.Discriminator.zero_grad()
-            d_loss, d_loss_details = model.d_loss(input_n_20, input_n_100)
-            d_loss.backward()
-            optimizer_D.step()
-            metric_logger.update(d_loss=d_loss)
+            
+            # --- Forward에 autocast 적용 ---
+            with autocast():
+                d_loss, d_loss_details = model.d_loss(input_n_20, input_n_100)
+                
+            # --- Scaler를 통한 Backward 및 Optimizer Step ---
+            scaler_D.scale(d_loss).backward()
+            scaler_D.step(optimizer_D)
+            scaler_D.update()
+            
+            metric_logger.update(d_loss=d_loss.item())
             metric_logger.update(**d_loss_details)
 
             # Generator
             optimizer_G.zero_grad()
             model.Generator.zero_grad()
-            g_loss, g_loss_details = model.g_loss(input_n_20, input_n_100)
-            g_loss.backward()
-            optimizer_G.step()
-            metric_logger.update(g_loss=g_loss)
+            
+            # --- Forward에 autocast 적용 ---
+            with autocast():
+                g_loss, g_loss_details = model.g_loss(input_n_20, input_n_100)
+                
+            # --- Scaler를 통한 Backward 및 Optimizer Step ---
+            scaler_G.scale(g_loss).backward()
+            scaler_G.step(optimizer_G)
+            scaler_G.update()
+            
+            metric_logger.update(g_loss=g_loss.item())
             metric_logger.update(**g_loss_details)
             metric_logger.update(lr=optimizer_G.param_groups[0]["lr"])
 
