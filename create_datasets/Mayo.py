@@ -67,7 +67,7 @@ def get_transforms(mode="train", type="full_patch"):
             return Compose([
                     Lambdad(keys=["n_20", "n_100"], func=get_pixels_hu),
                     Lambdad(keys=["n_20", "n_100"], func=dicom_normalize),
-                    AddChanneld(keys=["n_20", "n_100"]),                 
+                    EnsureChannelFirstd(keys=["n_20", "n_100"], channel_dim="no_channel"),                
 
                     # (15 degree rotation, vertical & horizontal flip & scaling)
                     RandRotate90d(keys=["n_20", "n_100"], prob=0.1, spatial_axes=[0, 1], allow_missing_keys=False),
@@ -83,7 +83,7 @@ def get_transforms(mode="train", type="full_patch"):
             return Compose([
                     Lambdad(keys=["n_20", "n_100"], func=get_pixels_hu),
                     Lambdad(keys=["n_20", "n_100"], func=dicom_normalize),
-                    AddChanneld(keys=["n_20", "n_100"]),    
+                    EnsureChannelFirstd(keys=["n_20", "n_100"], channel_dim="no_channel"),   
 
                     # Crop, patch training, next(iter(loader)) output : list로 sample 만큼,,, 그 List 안에 (B, C, H, W)
                     RandSpatialCropSamplesd(keys=["n_20", "n_100"], roi_size=(64, 64), num_samples=8, random_center=True, random_size=False, allow_missing_keys=False), 
@@ -102,7 +102,7 @@ def get_transforms(mode="train", type="full_patch"):
             return Compose([
                     Lambdad(keys=["n_20", "n_100"], func=get_pixels_hu),
                     ScaleIntensityRanged(keys=["n_20", "n_100"], a_min=-160.0, a_max=240.0, b_min=0.0, b_max=1.0, clip=True),     # Windowing HU [min:-160, max:240]
-                    AddChanneld(keys=["n_20", "n_100"]),
+                    EnsureChannelFirstd(keys=["n_20", "n_100"], channel_dim="no_channel"), 
 
                     # (15 degree rotation, vertical & horizontal flip & scaling)
                     RandRotate90d(keys=["n_20", "n_100"], prob=0.1, spatial_axes=[0, 1], allow_missing_keys=False),
@@ -142,7 +142,7 @@ def get_transforms(mode="train", type="full_patch"):
             return Compose([
                 Lambdad(keys=["n_20", "n_100"], func=get_pixels_hu),
                 Lambdad(keys=["n_20", "n_100"], func=dicom_normalize),
-                AddChanneld(keys=["n_20", "n_100"]),     
+                EnsureChannelFirstd(keys=["n_20", "n_100"], channel_dim="no_channel"),    
 
                 # Normalize
                 # Lambdad(keys=["n_20", "n_100"], func=functools.partial(minmax_normalize, option=False)),                             
