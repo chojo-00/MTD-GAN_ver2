@@ -25,10 +25,15 @@ def get_args_parser():
     # Dataset parameters
     parser.add_argument('--dataset',               default="amc", type=str, help='dataset name')
     parser.add_argument('--dataset-type-train',    default="window_patch", type=str)
-    parser.add_argument('--dataset-type-valid',    default="window_patch", type=str)
+    parser.add_argument('--dataset-type-valid',    default="window_patch", type=str)    
+    parser.add_argument('--dose',                  default='both', type=str, choices=['full', 'quarter', 'both'],)
     parser.add_argument('--batch-size',            default=72, type=int)
     parser.add_argument('--train-num-workers',     default=10, type=int)
     parser.add_argument('--valid-num-workers',     default=10, type=int)
+
+    # Kernel parameters
+    parser.add_argument('--in-kernel',             default="B45f", type=str, help='Input reconstruction kernel (e.g., B45f, B60f)')
+    parser.add_argument('--gt-kernel',             default="B30f", type=str, help='Target reconstruction kernel (e.g., B30f)')
 
     # Model parameters
     parser.add_argument('--model',                 default='MTD_GAN_Method', type=str, help='model name (only MTD_GAN_Method is supported)')

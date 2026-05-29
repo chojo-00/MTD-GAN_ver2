@@ -15,9 +15,9 @@ def get_train_dataloader(name, args):
         train_loader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=args.valid_num_workers, shuffle=True,  drop_last=True,  collate_fn=train_collate_fn)
         valid_loader = DataLoader(valid_dataset, batch_size=1,               num_workers=args.valid_num_workers, shuffle=False, drop_last=False, collate_fn=valid_collate_fn)
 
-    elif name == 'my_chest_data': 
-        train_dataset, train_collate_fn = Custom.CUSTOM_Dataset_DCM(mode='train', type=args.dataset_type_train)
-        valid_dataset, valid_collate_fn = Custom.CUSTOM_Dataset_DCM(mode='valid', type=args.dataset_type_valid)
+    elif name == 'my_chest_data':
+        train_dataset, train_collate_fn = Custom.CUSTOM_Dataset_DCM(mode='train', type=args.dataset_type_train, args=args)
+        valid_dataset, valid_collate_fn = Custom.CUSTOM_Dataset_DCM(mode='valid', type=args.dataset_type_valid, args=args)
         train_loader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=args.train_num_workers, shuffle=True,  drop_last=True,  collate_fn=train_collate_fn)
         valid_loader = DataLoader(valid_dataset, batch_size=1,               num_workers=args.valid_num_workers, shuffle=False, drop_last=False, collate_fn=valid_collate_fn)    
 
@@ -40,7 +40,7 @@ def get_test_dataloader(name, args):
         test_loader = DataLoader(test_dataset, batch_size=args.test_batch_size, num_workers=args.test_num_workers, shuffle=False, drop_last=False, collate_fn=test_collate_fn) 
     
     elif name == 'my_chest_data':
-        test_dataset, test_collate_fn = Custom.TEST_CUSTOM_Dataset_DCM(mode='test', type=args.dataset_type_test)
+        test_dataset, test_collate_fn = Custom.TEST_CUSTOM_Dataset_DCM(mode='test', type=args.dataset_type_test, args=args)
         test_loader = DataLoader(test_dataset, batch_size=args.test_batch_size, num_workers=args.test_num_workers, shuffle=False, drop_last=False, collate_fn=test_collate_fn)
 
 

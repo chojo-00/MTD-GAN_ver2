@@ -164,7 +164,8 @@ def test_MTD_GAN_Ours(model, loss, data_loader, device, save_dir):
         input_n_20  = batch_data['n_20'].to(device).float()
         input_n_100 = batch_data['n_100'].to(device).float()
 
-        pred_n_100 = model.Generator(input_n_20)
+        with autocast():
+            pred_n_100 = model.Generator(input_n_20)
 
         L1_loss = loss(pred_n_100, input_n_100)
         metric_logger.update(L1_loss=L1_loss.item())
