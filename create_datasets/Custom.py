@@ -5,43 +5,94 @@ from create_datasets.Mayo import get_transforms, list_sort_nicely, default_colla
 
 
 # ---------------------------------------------------------
-# 1. 커널 매핑 함수 추가
-# args에서 B-series 이름을 받아오면, 그에 맞는 Br-series 이름을 찾아 반환합니다.
+# WBCT_Chest(B-series) -> WBCT_Chest_add(Br-series) 커널명 매핑
 # ---------------------------------------------------------
-def get_kernel_names(args):
-    # args로 커널을 받지 않았을 경우 작동할 기본값
-    in_chest = "B45f"
-    gt_chest = "B30f"
+KERNEL_MAP = {'B30f': 'Br36d', 'B45f': 'Br49d', 'B60f': 'Br59d'}
 
-    # args 객체가 존재하고, 안에 in_kernel / gt_kernel 값이 있다면 가져옵니다.
-    if args is not None:
-        if hasattr(args, 'in_kernel') and args.in_kernel:
-            in_chest = args.in_kernel
-        if hasattr(args, 'gt_kernel') and args.gt_kernel:
-            gt_chest = args.gt_kernel
-
-    # 사용자가 정한 매핑 규칙
-    kernel_map = {
-        'B30f': 'Br36d',
-        'B45f': 'Br49d',
-        'B60f': 'Br59d'
-    }
-
-    # 딕셔너리에서 매핑되는 Br-series를 찾고, 만약 딕셔너리에 정의되지 않은 커널이면 원래 이름을 그대로 사용합니다.
-    in_add = kernel_map.get(in_chest, in_chest)
-    gt_add = kernel_map.get(gt_chest, gt_chest)
-
-    return in_chest, gt_chest, in_add, gt_add
+def _map_kernel(source, chest_kernel):
+    # WBCT_Chest 는 B-series 그대로, WBCT_Chest_add 는 Br-series 로 변환
+    if source == 'WBCT_Chest_add':
+        return KERNEL_MAP.get(chest_kernel, chest_kernel)
+    return chest_kernel
 
 
 # ---------------------------------------------------------
-# 2. Train / Valid 데이터셋 함수 (args 파라미터 추가)
+# 환자 폴더 목록
+# ---------------------------------------------------------
+def _list_patients(mode_dir, source, dose):
+    base = os.path.join(mode_dir, source, dose)
+    if not os.path.isdir(base):
+        return []
+    return sorted(d for d in os.listdir(base) if os.path.isdir(os.path.join(base, d)))
+
+
+# ---------------------------------------------------------
+# 위치(index) 기준 페어링
+#  - 입력/정답 슬라이스를 각각 자연정렬한 뒤 N번째끼리 묶는다.
+#  - WBCT_Chest_add 처럼 커널마다 번호가 이어져도(Br49d 0316~, Br36d 0001~)
+#    N번째 슬라이스는 같은 해부학적 위치이므로 정확히 매칭된다.
+#  - 개수가 다르면 경고를 찍고 짧은 쪽까지만 사용 → 밀림을 환자 단위로 가둔다.
+# ---------------------------------------------------------
+def _pair_by_position(in_glob, gt_glob, tag=""):
+    in_list = list_sort_nicely(glob.glob(in_glob))
+    gt_list = list_sort_nicely(glob.glob(gt_glob))
+    if len(in_list) != len(gt_list):
+        print(f"[WARN] slice count mismatch ({tag}): in={len(in_list)}, gt={len(gt_list)}")
+    n = min(len(in_list), len(gt_list))
+    return list(zip(in_list[:n], gt_list[:n]))
+
+
+# ---------------------------------------------------------
+# task 별 파일 쌍 구성
+#   - denoising : 입력 = Quarter,   정답 = Full       (동일 커널)
+#   - kernel    : 입력 = in_kernel, 정답 = gt_kernel  (동일 dose)
+# ---------------------------------------------------------
+def _build_files(mode_dir, args, with_path=False):
+    task      = getattr(args, 'task',      'denoising')
+    in_kernel = getattr(args, 'in_kernel', 'B30f')
+    gt_kernel = getattr(args, 'gt_kernel', 'B30f')
+    dose      = (getattr(args, 'dose', 'both') or 'both').lower()
+
+    files = []
+    for source in ['WBCT_Chest', 'WBCT_Chest_add']:
+
+        if task == 'denoising':
+            kernel = _map_kernel(source, in_kernel)
+            pats_q = set(_list_patients(mode_dir, source, 'Quarter'))
+            pats_f = set(_list_patients(mode_dir, source, 'Full'))
+            for pid in sorted(pats_q & pats_f):
+                in_glob = os.path.join(mode_dir, source, 'Quarter', pid, kernel, '*.dcm')
+                gt_glob = os.path.join(mode_dir, source, 'Full',    pid, kernel, '*.dcm')
+                for a, b in _pair_by_position(in_glob, gt_glob, f"{source}/{pid}/{kernel}"):
+                    item = {"n_20": a, "n_100": b}
+                    if with_path:
+                        item["path_n_20"], item["path_n_100"] = a, b
+                    files.append(item)
+
+        elif task == 'kernel':
+            in_k = _map_kernel(source, in_kernel)
+            gt_k = _map_kernel(source, gt_kernel)
+            dose_dirs = {'full': ['Full'], 'quarter': ['Quarter'], 'both': ['Full', 'Quarter']}[dose]
+            for d in dose_dirs:
+                for pid in _list_patients(mode_dir, source, d):
+                    in_glob = os.path.join(mode_dir, source, d, pid, in_k, '*.dcm')
+                    gt_glob = os.path.join(mode_dir, source, d, pid, gt_k, '*.dcm')
+                    for a, b in _pair_by_position(in_glob, gt_glob, f"{source}/{d}/{pid}"):
+                        item = {"n_20": a, "n_100": b}
+                        if with_path:
+                            item["path_n_20"], item["path_n_100"] = a, b
+                        files.append(item)
+        else:
+            raise ValueError(f"Unknown task: {task} (use 'denoising' or 'kernel')")
+
+    return files
+
+
+# ---------------------------------------------------------
+# Train / Valid
 # ---------------------------------------------------------
 def CUSTOM_Dataset_DCM(mode, type='window', args=None):
-    # 실제 데이터가 있는 최상위 경로로 수정해주세요.
-    base_dir = "/workspace/bc_cho/0_Project/2_LDCT2NDCT/dataset/nas69" 
-    
-    # Train / Valid 폴더 경로 설정
+    base_dir = "/workspace/bc_cho/0_Project/2_LDCT2NDCT/dataset/nas69"
     if mode == 'train':
         mode_dir = os.path.join(base_dir, 'train')
     elif mode == 'valid':
@@ -49,89 +100,26 @@ def CUSTOM_Dataset_DCM(mode, type='window', args=None):
     else:
         raise ValueError("mode must be 'train' or 'valid'")
 
-    # 추가된 함수를 사용해 동적으로 폴더 이름 4가지를 가져옵니다.
-    in_chest_k, gt_chest_k, in_add_k, gt_add_k = get_kernel_names(args)
+    files = _build_files(mode_dir, args, with_path=False)
+    print(f"[{mode}] task={getattr(args, 'task', 'denoising')} | Total pairs: {len(files)}")
 
-    # 파라미터에서 데이터 유형 읽어오기 (기본값은 both)
-    dose_type = 'both'
-    if args is not None and hasattr(args, 'dose') and args.dose:
-        dose_type = args.dose.lower()
-
-    n_20_imgs = []
-    n_100_imgs = []
-
-    # Full 데이터 로드
-    if dose_type in ['full', 'both']:
-        n_20_imgs += list_sort_nicely(glob.glob(os.path.join(mode_dir, f'WBCT_Chest/Full/*/{in_chest_k}/*.dcm')))
-        n_100_imgs += list_sort_nicely(glob.glob(os.path.join(mode_dir, f'WBCT_Chest/Full/*/{gt_chest_k}/*.dcm')))
-        n_20_imgs += list_sort_nicely(glob.glob(os.path.join(mode_dir, f'WBCT_Chest_add/Full/*/{in_add_k}/*.dcm')))
-        n_100_imgs += list_sort_nicely(glob.glob(os.path.join(mode_dir, f'WBCT_Chest_add/Full/*/{gt_add_k}/*.dcm')))
-
-    # Quarter 데이터 로드
-    if dose_type in ['quarter', 'both']:
-        n_20_imgs += list_sort_nicely(glob.glob(os.path.join(mode_dir, f'WBCT_Chest/Quarter/*/{in_chest_k}/*.dcm')))
-        n_100_imgs += list_sort_nicely(glob.glob(os.path.join(mode_dir, f'WBCT_Chest/Quarter/*/{gt_chest_k}/*.dcm')))
-        n_20_imgs += list_sort_nicely(glob.glob(os.path.join(mode_dir, f'WBCT_Chest_add/Quarter/*/{in_add_k}/*.dcm')))
-        n_100_imgs += list_sort_nicely(glob.glob(os.path.join(mode_dir, f'WBCT_Chest_add/Quarter/*/{gt_add_k}/*.dcm')))
-
-    print(f"[{mode}] Dataset Dose Type: {dose_type.upper()}")
-    print(f"[{mode}] Input count: {len(n_20_imgs)} (Chest: {in_chest_k}, Add: {in_add_k})")
-    print(f"[{mode}] Target count: {len(n_100_imgs)} (Chest: {gt_chest_k}, Add: {gt_add_k})")
-    
-    if len(n_20_imgs) != len(n_100_imgs):
-        print("경고: 입력 이미지와 정답 이미지의 개수가 다릅니다!")
-
-    # 딕셔너리 형태로 묶기
-    files = [{"n_20": n_20, "n_100": n_100} for n_20, n_100 in zip(n_20_imgs, n_100_imgs)]
-    
-    # Mayo.py에 정의된 Data Augmentation & Normalization 가져오기
     transforms = get_transforms(mode=mode, type=type)
-
-    # 데이터셋 반환
     if mode == 'train' and (type == 'full_patch' or type == 'window_patch'):
         return Dataset(data=files, transform=transforms), list_data_collate
     else:
         return Dataset(data=files, transform=transforms), default_collate_fn
-    
+
 
 # ---------------------------------------------------------
-# 3. Test 데이터셋 함수 (args 파라미터 추가)
+# Test
 # ---------------------------------------------------------
 def TEST_CUSTOM_Dataset_DCM(mode='test', type='window_patch', args=None):
-    base_dir = "/workspace/bc_cho/0_Project/2_LDCT2NDCT/dataset/nas206" 
-    mode_dir = os.path.join(base_dir)
+    mode_dir = "/workspace/bc_cho/0_Project/2_LDCT2NDCT/dataset/nas206"
 
-    in_chest_k, gt_chest_k, in_add_k, gt_add_k = get_kernel_names(args)
+    files = _build_files(mode_dir, args, with_path=True)
+    print(f"[{mode}] task={getattr(args, 'task', 'denoising')} | Total pairs: {len(files)}")
 
-    dose_type = 'both'
-    if args is not None and hasattr(args, 'dose') and args.dose:
-        dose_type = args.dose.lower()
-
-    n_20_imgs = []
-    n_100_imgs = []
-
-    if dose_type in ['full', 'both']:
-        n_20_imgs += list_sort_nicely(glob.glob(os.path.join(mode_dir, f'WBCT_Chest/Full/*/{in_chest_k}/*.dcm')))
-        n_100_imgs += list_sort_nicely(glob.glob(os.path.join(mode_dir, f'WBCT_Chest/Full/*/{gt_chest_k}/*.dcm')))
-        n_20_imgs += list_sort_nicely(glob.glob(os.path.join(mode_dir, f'WBCT_Chest_add/Full/*/{in_add_k}/*.dcm')))
-        n_100_imgs += list_sort_nicely(glob.glob(os.path.join(mode_dir, f'WBCT_Chest_add/Full/*/{gt_add_k}/*.dcm')))
-
-    if dose_type in ['quarter', 'both']:
-        n_20_imgs += list_sort_nicely(glob.glob(os.path.join(mode_dir, f'WBCT_Chest/Quarter/*/{in_chest_k}/*.dcm')))
-        n_100_imgs += list_sort_nicely(glob.glob(os.path.join(mode_dir, f'WBCT_Chest/Quarter/*/{gt_chest_k}/*.dcm')))
-        n_20_imgs += list_sort_nicely(glob.glob(os.path.join(mode_dir, f'WBCT_Chest_add/Quarter/*/{in_add_k}/*.dcm')))
-        n_100_imgs += list_sort_nicely(glob.glob(os.path.join(mode_dir, f'WBCT_Chest_add/Quarter/*/{gt_add_k}/*.dcm')))
-
-    print(f"[{mode}] Dataset Dose Type: {dose_type.upper()}")
-    print(f"[{mode}] Input count: {len(n_20_imgs)} (Chest: {in_chest_k}, Add: {in_add_k})")
-    print(f"[{mode}] Target count: {len(n_100_imgs)} (Chest: {gt_chest_k}, Add: {gt_add_k})")
-
-    # 딕셔너리 형태로 묶기
-    files = [{"n_20": n_20, "n_100": n_100, "path_n_20": n_20, "path_n_100": n_100} for n_20, n_100 in zip(n_20_imgs, n_100_imgs)]
-    # Mayo.py에 정의된 Data Augmentation & Normalization 가져오기
     transforms = get_transforms(mode=mode, type=type)
-
-    # 데이터셋 반환 (Test는 주로 기본 collate_fn을 사용합니다)
     if type == 'full_patch' or type == 'window_patch':
         return Dataset(data=files, transform=transforms), list_data_collate
     else:
