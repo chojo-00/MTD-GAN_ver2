@@ -27,6 +27,7 @@ def get_args_parser():
     parser.add_argument('--dataset-type-train',    default="window_patch", type=str)
     parser.add_argument('--dataset-type-valid',    default="window_patch", type=str)    
     parser.add_argument('--dose',                  default='both', type=str, choices=['full', 'quarter', 'both'],)
+    parser.add_argument('--task', default='denoising', type=str, choices=['denoising', 'kernel'], help="denoising: Quarter->Full(동일 커널) / kernel: in_kernel->gt_kernel(동일 dose)")
     parser.add_argument('--batch-size',            default=72, type=int)
     parser.add_argument('--train-num-workers',     default=10, type=int)
     parser.add_argument('--valid-num-workers',     default=10, type=int)
