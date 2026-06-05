@@ -1,11 +1,12 @@
 #!/bin/bash
-#SBATCH -J mtd_gan_train_ver2_full_60to30
+#SBATCH -J mtd_gan_train_ver2_denoising_60
 #SBATCH -t 7-00:00:00
 #SBATCH -o logs/%x_%A_%N.out
 #SBATCH --mail-type END,TIME_LIMIT_90,REQUEUE,INVALID_DEPEND,BEGIN
 #SBATCH --mail-user chobyeongcheon00@gmail.com
-#SBATCH -p RTX3090
-#SBATCH -w gpu30
+#SBATCH -p V100
+#SBATCH -w gpu1011203.5
+
 #SBATCH --gres=gpu:1
 
 
@@ -13,17 +14,17 @@ export HTTP_PROXY="http://192.168.45.108:3128"
 export HTTPS_PROXY="http://192.168.45.108:3128"
 
 # Define vars
-JOB_NAME="mtd_gan_train_ver2_full_60to30"
+JOB_NAME="mtd_gan_train_ver2_denoising_60"
 DOCKER_IMAGE_NAME="bc_cho/${JOB_NAME}"
 DOCKER_CONTAINER_NAME="bc_cho${JOB_NAME}"
-PORT_NUM=4994
+PORT_NUM=4998
 
 
 
 # Paths inside the container
 CODE_DIR="/workspace/bc_cho/0_Project/2_LDCT2NDCT/MTD-GAN_ver2"
-CHECKPOINT_DIR="${CODE_DIR}/checkpoints/Full_60to30"
-SAVE_DIR="${CODE_DIR}/predictions/Full_60to30"
+CHECKPOINT_DIR="${CODE_DIR}/checkpoints/denoising_60"
+SAVE_DIR="${CODE_DIR}/predictions/denoising_60"
 
 
 # Run containers
@@ -58,8 +59,7 @@ docker run --rm \
                 --dataset-type-train 'full_patch' \
                 --dataset-type-valid 'full' \
                 --in-kernel 'B60f' \
-                --gt-kernel 'B30f' \
-                --dose 'full' \
+                --task 'denoising' \
                 --batch-size 48 \
                 --train-num-workers 16 \
                 --valid-num-workers 16 \
