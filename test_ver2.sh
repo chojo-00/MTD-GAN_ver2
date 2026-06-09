@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH -J mtd_gan_test_ver2_full_60to30
+#SBATCH -J mtd_gan_test_ver2_denoising_60
 #SBATCH -t 7-00:00:00
 #SBATCH -o logs/%x_%A_%N.out
 #SBATCH --mail-type BEGIN,END
 #SBATCH --mail-user chobyeongcheon00@gmail.com
 #SBATCH -p TitanRTX
-#SBATCH -w gpu15
+#SBATCH -w gpu17
 #SBATCH --gres=gpu:1
 
 
@@ -13,18 +13,18 @@ export HTTP_PROXY="http://192.168.45.108:3128"
 export HTTPS_PROXY="http://192.168.45.108:3128"
 
 # Define vars
-JOB_NAME="mtd_gan_test_ver2_full_60to30"
+JOB_NAME="mtd_gan_test_ver2_denoising_60"
 DOCKER_IMAGE_NAME="bc_cho/${JOB_NAME}"
 DOCKER_CONTAINER_NAME="bc_cho${JOB_NAME}"
-PORT_NUM=4140
+PORT_NUM=4142
 
 
 
 # Paths inside the container
 CODE_DIR="/workspace/bc_cho/0_Project/2_LDCT2NDCT/MTD-GAN_ver2"
-CHECKPOINT_DIR="${CODE_DIR}/checkpoints/Full_60to30"
+CHECKPOINT_DIR="${CODE_DIR}/checkpoints/denoising_60"
 # 테스트 결과 이미지가 섞이지 않도록 별도의 폴더 지정
-SAVE_DIR="${CODE_DIR}/test_results/Full_60to30" 
+SAVE_DIR="${CODE_DIR}/test_results/denoising_60" 
 
 
 # Run containers
@@ -58,8 +58,7 @@ docker run --rm \
                 --dataset my_chest_data \
                 --dataset-type-test 'full' \
                 --in-kernel 'B60f' \
-                --gt-kernel 'B30f' \
-                --dose 'full' \
+                --task 'denoising' \
                 --test-batch-size 1 \
                 --test-num-workers 16 \
                 --model 'MTD_GAN_Method' \
@@ -71,3 +70,8 @@ docker run --rm \
                 --save-dir ${SAVE_DIR} \
                 --epoch 10
         "
+
+
+## parser 모음
+##                 --gt-kernel 'B60f' \
+##                 --dose 'full' \
