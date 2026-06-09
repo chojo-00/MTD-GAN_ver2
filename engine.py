@@ -127,31 +127,17 @@ def valid_MTD_GAN_Ours(model, loss, data_loader, device, epoch, save_dir, print_
         L1_loss = loss(pred_n_100, input_n_100)
         metric_logger.update(L1_loss=L1_loss.item())
 
-        # Denormalize (windowing input version)
-        input_n_20  = fn_tonumpy(input_n_20)
-        input_n_100 = fn_tonumpy(input_n_100)
-        pred_n_100  = fn_tonumpy(pred_n_100)
+    # Denormalize
+    input_n_20  = fn_tonumpy(input_n_20)
+    input_n_100 = fn_tonumpy(input_n_100)
+    pred_n_100  = fn_tonumpy(pred_n_100)
 
-        # 1. 원본 파일 경로에서 환자 ID (2단계 상위 폴더명) 추출
-        # 예: /dataset/Patient_01/Sub_folder/00001.dcm -> 'Patient_01' 추출
-        patient_id = batch_data['path_n_20'][0].split('/')[-3]
-        
-        # 2. 결과 저장 경로 하위에 환자 ID 폴더 생성 (test_results/.../Patient_01)
-        patient_save_dir = os.path.join(save_dir, patient_id)
-        os.makedirs(patient_save_dir, mode=0o777, exist_ok=True)
-
-        # 3. 저장할 파일명 설정
-        file_name_20 = batch_data['path_n_20'][0].split('/')[-1].replace('.dcm', '_gt_n_20.png')
-        file_name_100 = batch_data['path_n_100'][0].split('/')[-1].replace('.dcm', '_gt_n_100.png')
-        file_name_pred = batch_data['path_n_20'][0].split('/')[-1].replace('.dcm', '_pred_n_100.png')
-
-        # 4. 환자별로 생성된 폴더 내부에 각각 안전하게 저장
-        plt.imsave(os.path.join(patient_save_dir, file_name_20),   input_n_20.squeeze(),  cmap="gray")
-        plt.imsave(os.path.join(patient_save_dir, file_name_100),  input_n_100.squeeze(), cmap="gray")
-        plt.imsave(os.path.join(patient_save_dir, file_name_pred), pred_n_100.squeeze(),  cmap="gray")
+    # PNG Save (epoch별 1장, 모니터링용)
+    plt.imsave(save_dir + '/epoch_' + str(epoch) + '_input_n_20.png', input_n_20[0].squeeze(),  cmap="gray")
+    plt.imsave(save_dir + '/epoch_' + str(epoch) + '_gt_n_100.png',   input_n_100[0].squeeze(), cmap="gray")
+    plt.imsave(save_dir + '/epoch_' + str(epoch) + '_pred_n_100.png', pred_n_100[0].squeeze(),  cmap="gray")
 
     return {k: round(meter.global_avg, 7) for k, meter in metric_logger.meters.items()}
-
 
 @torch.no_grad()
 def test_MTD_GAN_Ours(model, loss, data_loader, device, save_dir):
