@@ -168,20 +168,22 @@ def test_MTD_GAN_Ours(model, loss, data_loader, device, save_dir):
         metric_logger.update(L1_loss=L1_loss.item())
 
         # SAVE folders
-        # ---- 저장 경로: save_dir/{source}/{dose}/{patient}/ ----
         in_path = batch_data['path_n_20'][0]
         parts   = in_path.split('/')
+        
+        # 1. WBCT_Chest 혹은 WBCT_Chest_add 추출
         src_idx = next((i for i, p in enumerate(parts) if p.startswith('WBCT_Chest')), None)
         if src_idx is not None:
             source_dir = parts[src_idx]        # WBCT_Chest / WBCT_Chest_add
-            dose_dir   = parts[src_idx + 1]    # Full / Quarter
+            # 경로 구조: WBCT_Chest / Quarter(dose) / 환자ID / 커널 / 파일명
             patient_id = parts[src_idx + 2]    # ANONY_004 등
         else:
-            source_dir, dose_dir, patient_id = 'unknown', 'unknown', 'unknown'
+            source_dir = 'unknown'
+            patient_id = 'unknown'
 
-        patient_save_dir = os.path.join(save_dir, source_dir, dose_dir, patient_id)
+        patient_save_dir = os.path.join(save_dir, source_dir, patient_id)
         os.makedirs(patient_save_dir, mode=0o777, exist_ok=True)
-        fname = parts[-1]   # 예: 0316.dcm
+        fname = parts[-1]   # 파일명 (예: 0316.dcm)
 
         # Metrics
         input_pl,   gt_pl,   pred_pl    = compute_PL(input=input_n_20, target=input_n_100, pred=pred_n_100.clip(0, 1), device='cuda')
@@ -202,24 +204,10 @@ def test_MTD_GAN_Ours(model, loss, data_loader, device, save_dir):
         input_n_100 = fn_tonumpy(input_n_100)
         pred_n_100  = fn_tonumpy(pred_n_100)
 
-        # 1. 원본 파일 경로에서 환자 ID(상위 폴더명) 추출
-        # 예: /workspace/.../dataset/Patient_01/00001.dcm -> 'Patient_01' 추출
-        patient_id = batch_data['path_n_20'][0].split('/')[-3]
-
-        # 2. 결과 저장 경로 하위에 환자 ID 폴더 경로 생성 (test_results/.../Patient_01)
-        patient_save_dir = os.path.join(save_dir, patient_id)
-        os.makedirs(patient_save_dir, mode=0o777, exist_ok=True)
-
-        # 3. 저장할 파일명 설정
-        file_name_20 = batch_data['path_n_20'][0].split('/')[-1].replace('.dcm', '_gt_n_20.png')
-        file_name_100 = batch_data['path_n_100'][0].split('/')[-1].replace('.dcm', '_gt_n_100.png')
-        file_name_pred = batch_data['path_n_20'][0].split('/')[-1].replace('.dcm', '_pred_n_100.png')
-
-        # 4. 환자별로 생성된 폴더 내부에 각각 안전하게 저장
+        # 3. 환자별로 생성된 폴더 내부에 각각 안전하게 저장
         plt.imsave(os.path.join(patient_save_dir, fname.replace('.dcm', '_gt_n_20.png')),    input_n_20.squeeze(),  cmap="gray")
         plt.imsave(os.path.join(patient_save_dir, fname.replace('.dcm', '_gt_n_100.png')),   input_n_100.squeeze(), cmap="gray")
         plt.imsave(os.path.join(patient_save_dir, fname.replace('.dcm', '_pred_n_100.png')), pred_n_100.squeeze(),  cmap="gray")
-
         # Per-sample records
         path_list.append(batch_data['path_n_20'][0])
         pl_list.append(pred_pl.item())
