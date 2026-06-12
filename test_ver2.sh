@@ -4,8 +4,8 @@
 #SBATCH -o logs/%x_%A_%N.out
 #SBATCH --mail-type BEGIN,END
 #SBATCH --mail-user chobyeongcheon00@gmail.com
-#SBATCH -p TitanRTX
-#SBATCH -w gpu17
+#SBATCH -p RTX3090
+#SBATCH -w gpu32
 #SBATCH --gres=gpu:1
 
 
@@ -16,7 +16,7 @@ export HTTPS_PROXY="http://192.168.45.108:3128"
 JOB_NAME="mtd_gan_test_ver2_denoising_60"
 DOCKER_IMAGE_NAME="bc_cho/${JOB_NAME}"
 DOCKER_CONTAINER_NAME="bc_cho${JOB_NAME}"
-PORT_NUM=4142
+PORT_NUM=4150
 
 
 
@@ -24,7 +24,7 @@ PORT_NUM=4142
 CODE_DIR="/workspace/bc_cho/0_Project/2_LDCT2NDCT/MTD-GAN_ver2"
 CHECKPOINT_DIR="${CODE_DIR}/checkpoints/denoising_60"
 # 테스트 결과 이미지가 섞이지 않도록 별도의 폴더 지정
-SAVE_DIR="${CODE_DIR}/test_results/denoising_60" 
+SAVE_DIR="${CODE_DIR}/test_results/denoising_60_new_new" 
 
 
 # Run containers
