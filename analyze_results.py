@@ -98,7 +98,7 @@ def stats_and_hist(df, save_dir):
     print("\n========== Metric summary (N=%d) ==========" % len(df))
     rows = []
     for col, label in [("RMSE_HU", "RMSE (HU)"), ("PSNR", "PSNR (dB)"),
-                       ("SSIM", "SSIM"), ("PL", "PL"), ("TML", "TML")]:
+                   ("SSIM", "SSIM"), ("LPIPS", "LPIPS")]:   # PL, TML 제거 / LPIPS 추가
         s = df[col]
         print(f"{label:10s} | mean={s.mean():.4f}  var={s.var():.6f}  "
               f"std={s.std():.4f}  median={s.median():.4f}  "
@@ -169,6 +169,7 @@ def select_indices(df, rank_metric, k, seed, unique_patient=False):
 def infer_selected(df, sel_idx, args, device):
     class A: pass
     a = A()
+    a.task = args.task
     a.in_kernel = args.in_kernel
     a.gt_kernel = args.gt_kernel
     a.dose = "both"
@@ -280,11 +281,12 @@ def main():
     p.add_argument("--in-kernel", default="B45f")
     p.add_argument("--gt-kernel", default="B30f")
     p.add_argument("--rank-metric", default="SSIM",
-                   choices=["SSIM", "PSNR", "RMSE", "PL", "TML"])
+               choices=["SSIM", "PSNR", "RMSE", "LPIPS"])   # PL, TML 제거 / LPIPS 추가
     p.add_argument("--k", default=10, type=int)
     p.add_argument("--seed", default=42, type=int)
     p.add_argument("--unique-patient", action="store_true",
                    help="best/worst 선택 시 한 환자당 1 슬라이스만 (random 은 그대로)")
+    p.add_argument("--task", default="kernel", choices=["denoising", "kernel"])
     p.add_argument("--device", default="cuda")
     args = p.parse_args()
 

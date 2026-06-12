@@ -7,8 +7,8 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 from torch.cuda.amp import autocast, GradScaler
-from metrics import compute_feat, compute_FID, compute_PL, compute_TML, compute_RMSE, compute_PSNR, compute_SSIM
-
+from metrics import compute_LPIPS, compute_RMSE, compute_PSNR, compute_SSIM
+import lpips
 
 # Setting
 fn_denorm  = lambda x: (x * 0.5) + 0.5
@@ -144,25 +144,24 @@ def test_MTD_GAN_Ours(model, loss, data_loader, device, save_dir):
     model.Generator.eval()
     metric_logger = utils.MetricLogger(delimiter="  ", n=1)
 
-    input_features  = []
-    target_features = []
-    pred_features   = []
+    # LPIPS 모델 1회 생성 후 재사용 (alex가 표준, 원하면 net='vgg')
+    lpips_fn = lpips.LPIPS(net='alex').to(device).eval()
 
-    # Per-sample metric records
-    path_list = []
-    pl_list   = []
-    tml_list  = []
-    rmse_list = []
-    psnr_list = []
-    ssim_list = []
+
+    # Per-sample records
+    path_list  = []
+    lpips_list = []
+    rmse_list  = []
+    psnr_list  = []
+    ssim_list  = []
 
     header = 'TEST:'
-    print_freq = 10 
+    print_freq = 10
     for batch_data in metric_logger.log_every(data_loader, print_freq, header):
 
         input_n_20  = batch_data['n_20'].to(device).float()
         input_n_100 = batch_data['n_100'].to(device).float()
-        pred_n_100 = model.Generator(input_n_20)
+        pred_n_100  = model.Generator(input_n_20)
 
         L1_loss = loss(pred_n_100, input_n_100)
         metric_logger.update(L1_loss=L1_loss.item())
@@ -185,19 +184,16 @@ def test_MTD_GAN_Ours(model, loss, data_loader, device, save_dir):
         os.makedirs(patient_save_dir, mode=0o777, exist_ok=True)
         fname = parts[-1]   # 파일명 (예: 0316.dcm)
 
-        # Metrics
-        input_pl,   gt_pl,   pred_pl    = compute_PL(input=input_n_20, target=input_n_100, pred=pred_n_100.clip(0, 1), device='cuda')
-        input_tml,  gt_tml,  pred_tml   = compute_TML(input=input_n_20, target=input_n_100, pred=pred_n_100.clip(0, 1), device='cuda')
-        input_rmse, gt_rmse, pred_rmse  = compute_RMSE(input=input_n_20, target=input_n_100, pred=pred_n_100.clip(0, 1))
-        input_psnr, gt_psnr, pred_psnr  = compute_PSNR(input=input_n_20, target=input_n_100, pred=pred_n_100.clip(0, 1))
-        input_ssim, gt_ssim, pred_ssim  = compute_SSIM(input=input_n_20, target=input_n_100, pred=pred_n_100.clip(0, 1))
+        # --- Metrics ---
+        pred_clip = pred_n_100.clip(0, 1)
+        input_lpips, gt_lpips, pred_lpips = compute_LPIPS(lpips_fn, input=input_n_20, target=input_n_100, pred=pred_clip)
+        input_rmse,  gt_rmse,  pred_rmse  = compute_RMSE(input=input_n_20, target=input_n_100, pred=pred_clip)
+        input_psnr,  gt_psnr,  pred_psnr  = compute_PSNR(input=input_n_20, target=input_n_100, pred=pred_clip)
+        input_ssim,  gt_ssim,  pred_ssim  = compute_SSIM(input=input_n_20, target=input_n_100, pred=pred_clip)
 
-        input_feat, target_feat, pred_feat = compute_feat(input=input_n_20, target=input_n_100, pred=pred_n_100.clip(0, 1), device='cuda')
-        input_features.append(input_feat); target_features.append(target_feat); pred_features.append(pred_feat)
-
-        metric_logger.update(input_pl=input_pl, input_tml=input_tml, input_rmse=input_rmse, input_psnr=input_psnr, input_ssim=input_ssim)
-        metric_logger.update(gt_pl=gt_pl,       gt_tml=gt_tml,       gt_rmse=gt_rmse,       gt_psnr=gt_psnr,       gt_ssim=gt_ssim)
-        metric_logger.update(pred_pl=pred_pl,   pred_tml=pred_tml,   pred_rmse=pred_rmse,   pred_psnr=pred_psnr,   pred_ssim=pred_ssim)
+        metric_logger.update(input_lpips=input_lpips, input_rmse=input_rmse, input_psnr=input_psnr, input_ssim=input_ssim)
+        metric_logger.update(gt_lpips=gt_lpips,       gt_rmse=gt_rmse,       gt_psnr=gt_psnr,       gt_ssim=gt_ssim)
+        metric_logger.update(pred_lpips=pred_lpips,   pred_rmse=pred_rmse,   pred_psnr=pred_psnr,   pred_ssim=pred_ssim)
 
         # Denormalize (windowing input version)
         input_n_20  = fn_tonumpy(input_n_20)
@@ -210,28 +206,18 @@ def test_MTD_GAN_Ours(model, loss, data_loader, device, save_dir):
         plt.imsave(os.path.join(patient_save_dir, fname.replace('.dcm', '_pred_n_100.png')), pred_n_100.squeeze(),  cmap="gray")
         # Per-sample records
         path_list.append(batch_data['path_n_20'][0])
-        pl_list.append(pred_pl.item())
-        tml_list.append(pred_tml.item())
+        lpips_list.append(pred_lpips)
         rmse_list.append(pred_rmse)
         psnr_list.append(pred_psnr)
         ssim_list.append(pred_ssim)
 
     # DataFrame dump
     df = pd.DataFrame()
-    df['PATH'] = path_list
-    df['PL']   = pl_list
-    df['TML']  = tml_list
-    df['RMSE'] = rmse_list
-    df['PSNR'] = psnr_list
-    df['SSIM'] = ssim_list
+    df['PATH']  = path_list
+    df['LPIPS'] = lpips_list
+    df['RMSE']  = rmse_list
+    df['PSNR']  = psnr_list
+    df['SSIM']  = ssim_list
     df.to_csv(save_dir + '/pred_results.csv')
-
-    # FID
-    input_fid, gt_fid, pred_fid = compute_FID(
-        torch.cat(input_features, dim=0),
-        torch.cat(target_features, dim=0),
-        torch.cat(pred_features, dim=0),
-    )
-    metric_logger.update(input_fid=input_fid, gt_fid=gt_fid, pred_fid=pred_fid)
 
     return {k: round(meter.global_avg, 7) for k, meter in metric_logger.meters.items()}

@@ -4,6 +4,7 @@ import numpy as np
 from math import exp
 import torch.nn.functional as F
 from torch.autograd import Variable
+import lpips
 
 from module.piq import FID
 from torchvision import models
@@ -13,6 +14,19 @@ from module.piq.feature_extractors import InceptionV3
 
 
 # Feature-based Metrics
+## lpips
+def compute_LPIPS(lpips_fn, input, target, pred):
+    assert len(input.shape) == 4 and len(target.shape) == 4 and len(pred.shape) == 4
+
+    def _prep(x):
+        return x.repeat(1, 3, 1, 1) if x.size(1) == 1 else x
+
+    input_lpips = lpips_fn(_prep(input),  _prep(target)).item()
+    gt_lpips    = lpips_fn(_prep(target), _prep(target)).item()
+    pred_lpips  = lpips_fn(_prep(pred),   _prep(target)).item()
+    return input_lpips, gt_lpips, pred_lpips
+
+
 ## FID
 def compute_feat(input, target, pred, device='cpu'):
     # Ref: https://github.com/photosynthesis-team/piq/blob/9948a52fc09ac5f7fb3618ce64b7086f5c3109da/piq/base.py#L18
